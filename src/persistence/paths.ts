@@ -28,6 +28,22 @@ export function cacheDir(): string {
   return path.join(resurgeHome(), 'cache');
 }
 
+export function logsDir(): string {
+  return path.join(resurgeHome(), 'logs');
+}
+
+export function detachedRequestsDir(): string {
+  return path.join(resurgeHome(), 'detached');
+}
+
+export function taskLogFile(taskId: string): string {
+  return path.join(logsDir(), `${taskId}.log`);
+}
+
+export function detachedRequestFile(taskId: string): string {
+  return path.join(detachedRequestsDir(), `${taskId}.json`);
+}
+
 export function taskFile(taskId: string): string {
   return path.join(tasksDir(), `${taskId}.json`);
 }
@@ -62,7 +78,7 @@ export function controlProcessingDir(taskId: string): string {
 
 /** Creates the home layout with owner-only permissions. */
 export function ensureLayout(): void {
-  for (const dir of [resurgeHome(), tasksDir(), cacheDir()]) {
+  for (const dir of [resurgeHome(), tasksDir(), cacheDir(), logsDir(), detachedRequestsDir()]) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     // mkdir's mode applies only to newly created directories. Tighten an
     // existing layout too, because task goals and failure evidence are private.

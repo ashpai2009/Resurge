@@ -1,7 +1,7 @@
 # Resurge v0.1 — implementation plan
 
 Status: **complete**. Every item below is implemented and covered by tests
-(159 passing, 3 skipped — the skipped ones are the opt-in real-Codex suite,
+(166 passing, 3 skipped — the skipped ones are the opt-in real-Codex suite,
 which needs an installed Codex CLI).
 
 This plan went through three rounds of safety review before implementation
@@ -137,7 +137,9 @@ Built first, because everything else writes through it.
 
 ## 10. CLI — ✅ complete
 
-- [x] `run`, `status`, `list`, `resume`, `pause`, `complete`
+- [x] `run`, `status`, `list`, `resume`, `pause`, `complete`, `logs`
+- [x] `--detach` for both run and resume, with a private handoff that keeps the
+      goal out of the background supervisor's argv and a 0600 per-task log
 - [x] Ctrl-C takes the confirmed-pause path and is not counted as a crash
 - [x] Status output matches the spec's target layout, and surfaces the
       single-writer assumption whenever a task is parked
@@ -166,7 +168,7 @@ was initially escalated as `CORRUPT_STATE`, which is both semantically wrong and
 
 ## Test coverage
 
-159 passing, 3 skipped.
+166 passing, 3 skipped.
 
 | Area | File |
 |---|---|
@@ -180,4 +182,5 @@ was initially escalated as `CORRUPT_STATE`, which is both semantically wrong and
 | state machine, rate-limit waits, retry limits, repo gate, sessions | `tests/integration/supervisor.test.ts` |
 | orphans, pause ordering, control requests, `--force` matrix | `tests/integration/safety.test.ts` |
 | end-to-end CLI against real processes | `tests/integration/fake-agent.test.ts` |
+| detached lifetime, recovery, logs, pause, and resume | `tests/integration/detached.test.ts` |
 | installed-CLI drift detection (opt-in) | `tests/compat/codex-cli.test.ts` |

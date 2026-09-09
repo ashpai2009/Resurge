@@ -2,6 +2,13 @@
   "name": "resurge",
   "version": "0.1.0",
   "description": "Fault tolerance for coding agents. Your agents can stop. Your work doesn't.",
+  "keywords": [
+    "codex",
+    "coding-agent",
+    "supervisor",
+    "fault-tolerance",
+    "automation"
+  ],
   "type": "module",
   "bin": {
     "resurge": "./dist/cli/index.js"
@@ -12,10 +19,12 @@
   "files": [
     "dist",
     "scripts",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

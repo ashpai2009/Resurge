@@ -1,139 +1,262 @@
 # Resurge
 
-**Fault tolerance for coding agents.**
+**Fault-tolerant supervision for long-running Codex tasks.**
 
-**Your agents can stop. Your work doesn't.**
+Coding agents stop for ordinary reasons: usage limits reset hours later, networks disappear, CLI processes crash, and terminals close. Resurge runs Codex under a durable supervisor, records enough state to recover safely, and resumes only after proving that it will not collide with another process or a changed repository.
 
-Resurge supervises a long-running Codex task so you don't have to babysit it. When the usage limit resets at 1:30 AM, when the wifi drops, when the CLI segfaults — Resurge notices, records what was happening, waits, checks that the world is still as the agent left it, and picks up where it stopped.
+> **Project status:** v0.1 beta. The core state machine, detached supervision, recovery gates, and multi-process safety model are implemented and tested on macOS. A controlled real-Codex task is still recommended before relying on it for important unattended work.
 
-And when it *can't* be sure that's safe, it stops and tells you why.
+## Why Resurge
 
----
+Resurge is not a retry loop around a shell command. It preserves the context and safety boundary of an agent task:
 
-## Install
+- Keeps the Codex session ID across rate limits, outages, and crashes.
+- Parses advertised reset times and waits until the reset plus a safety margin.
+- Runs in the background with a private, durable per-task log.
+- Captures Git branch, HEAD, dirty status, and dirty-file content fingerprints at interruption.
+- Refuses to resume if the repository changed while the agent was stopped.
+- Uses fenced leases and process identity to prevent duplicate supervisors and agents.
+- Distinguishes a clean agent exit from actual task completion.
+- Stops for human review whenever the evidence is ambiguous.
 
-Requires Node 20+ and macOS or Linux.
+## Requirements
+
+- Node.js 20 or newer
+- macOS or Linux
+- Git for repository-aware recovery
+- The Codex CLI for real tasks
+
+Windows is rejected in v0.1 because the current safety model depends on POSIX process groups, process-start identity, and filesystem primitives.
+
+## Install from source
 
 ```bash
-npm install
+cd /path/to/Resurge
+npm ci
 npm run build
-npm link          # optional, puts `resurge` on your PATH
+npm link
 ```
 
-The Codex CLI must be installed separately for real runs. Everything below works without it via the built-in fake agent.
-
-## Usage
+Confirm the installation:
 
 ```bash
-resurge run codex "finish the Apollo Labs reviewer workflow"
+resurge --version
+resurge help
 ```
 
-That's the whole thing. Resurge creates a task, launches Codex, streams its output, and supervises it in the foreground. Task state lives in `~/.resurge`, so the other commands work from any shell and survive Resurge itself dying.
+The Codex CLI is installed separately. Resurge checks the installed CLI and the exact start/resume argument forms before launching a real task.
+
+## Quick start
+
+Run a supervised task in the background:
 
 ```bash
-resurge status              # the most recent task
-resurge list                # everything Resurge knows about
-resurge resume <task-id>    # pick an interrupted task back up
-resurge pause <task-id>     # stop the agent, confirm it died, record it
-resurge complete <task-id>  # you reviewed the work; mark it done
+resurge run codex "finish the reviewer workflow and run its tests" \
+  --detach \
+  -- npm test
 ```
 
-`resurge status` looks like this:
+Resurge immediately prints a task ID and returns control to the terminal:
 
-```
-Apollo Labs Reviewer Workflow
-
-Agent          codex
-State          RATE_LIMITED
-Resume         01:31 AM  in 3 hr
-Branch         backend-review
-HEAD           abc1234
-Dirty files    4
-Checkpoint     38 sec ago
-
-Failure
-RATE_LIMIT: Error: usage limit reached. Try again at 1:30 AM
-
-Resurge assumes nothing else edits this repository while the task is interrupted.
+```text
+Task rsg_... started in the background (supervisor pid 12345).
+Status: resurge status rsg_...
+Logs:   resurge logs rsg_...
+Pause:  resurge pause rsg_...
 ```
 
-### Try it without Codex
+Inspect the task from any shell:
 
-The fake agent simulates every failure mode, costs nothing, and needs no API access:
+```bash
+resurge status <task-id>
+resurge logs <task-id>
+resurge list
+```
+
+Pause it safely:
+
+```bash
+resurge pause <task-id>
+```
+
+Resume it in the background:
+
+```bash
+resurge resume <task-id> --detach
+```
+
+Omit `--detach` when you want the supervisor and agent output attached to the current terminal.
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `resurge run <agent> "<goal>"` | Start a supervised task |
+| `resurge status [task-id]` | Show one task; defaults to the most recent |
+| `resurge list` | List all persisted tasks |
+| `resurge logs <task-id>` | Print the recent 256 KiB tail of a detached task log |
+| `resurge pause <task-id>` | Request a confirmed process-group stop |
+| `resurge resume <task-id>` | Resume through the full safety gate |
+| `resurge complete <task-id>` | Manually confirm a cleanly exited task is complete |
+
+Important run flags:
+
+| Flag | Meaning |
+|---|---|
+| `--detach` | Run the supervisor independently of the terminal |
+| `--cwd <directory>` | Set the task working directory |
+| `--no-store-output` | Do not retain the bounded output tail in task state |
+| `--max-crash-retries <n>` | Override the default three automatic crash restarts |
+| `-- <command...>` | Run a shell-free verification argv after a clean exit |
+
+`resume` accepts `--detach`, `--cwd`, and `--force`. Force acknowledges only reviewable repository or retry-policy findings; it never overrides a live orphan, active owner, corrupt state, or uncertain process identity.
+
+## Recovery behavior
+
+### Usage limits
+
+When Codex reports a usage or quota limit, Resurge stores `RATE_LIMITED`, preserves the session, and parses reset formats including:
+
+- `try again at 1:30 AM`
+- `retry in 45 minutes`
+- `retry-after: 3600`
+- ISO-8601 timestamps
+
+A parsed reset gets a one-minute safety margin. Without a usable reset time, Resurge backs off for 5 minutes, 15 minutes, 45 minutes, then 2 hours. Before every resume it verifies the repository, validates the Codex installation, and checks connectivity.
+
+### Network outages
+
+Network failures such as `ENOTFOUND`, `ECONNREFUSED`, `EAI_AGAIN`, unreachable networks, and TLS handshake failures enter `NETWORK_DOWN`. Connectivity probing is advisory and bounded to 15 minutes; after the budget expires, Resurge attempts a real invocation because that provides stronger evidence than a probe.
+
+### Agent crashes
+
+Signals, panics, stack traces, and non-zero exits are classified separately from usage and network failures. Resurge automatically restarts a crash at most three times with 2-second, 10-second, and 30-second delays, then requires review. A human-forced retry starts a fresh bounded crash window.
+
+### Invalid sessions
+
+Resurge abandons a session only when Codex explicitly reports that it no longer exists. It then creates a fresh session with a structured continuation prompt containing the original goal, repository state, changed files, previous failure, recent output, and next action.
+
+### Unknown failures
+
+Ambiguous evidence never triggers speculative recovery. The task enters `UNKNOWN_FAILURE` and waits for review.
+
+## Completion is explicit
+
+Exit code zero proves that Codex stopped cleanly; it does not prove the requested engineering work is correct. Without a verification command, the task enters `AGENT_EXITED_SUCCESSFULLY` and waits for:
+
+```bash
+resurge complete <task-id>
+```
+
+For unattended completion, provide a verification argv:
+
+```bash
+resurge run codex "fix the test suite" --detach -- npm test
+```
+
+The command runs directly without a shell. A passing command produces `COMPLETED`; a failure produces `REQUIRES_REVIEW` with bounded diagnostic output.
+
+## Safety model
+
+### One writer per task
+
+Every task has an exclusive lease containing a random fencing token, monotonic generation, host identity, boot identity, owner PID, and process-start identity. Lease takeover requires proof that the prior owner is gone: a dead process, a recycled PID, or a reboot. A stale heartbeat alone is never proof.
+
+Every mutation runs under a short-lived guard that rechecks the fencing token and task revision. A displaced or stale writer cannot overwrite its successor.
+
+### Repository-aware resume
+
+The recovery baseline is captured immediately after the child exits—not when the task starts. Work completed by the supervised agent is therefore part of the baseline. Changes made after interruption are blocked, including:
+
+- Branch or HEAD changes
+- New or removed dirty entries
+- Git status changes
+- Content changes that retain the same Git status
+- Merge conflicts
+
+Resurge assumes no other writer edits the working tree while a task is interrupted. If you intentionally changed it, inspect the result and use `resume --force` to accept a new baseline.
+
+### Confirmed pause and orphan handling
+
+`pause` records `PAUSE_REQUESTED`, signals the agent’s process group, waits for termination, escalates to `SIGKILL` if necessary, and writes `PAUSED` only after confirmed exit.
+
+If a supervisor dies but its agent remains alive, a new Resurge process reports the orphan and leaves it running. It does not kill a process it no longer owns, and it does not start a competing agent.
+
+### Private state
+
+State lives under `${RESURGE_HOME:-~/.resurge}` with `0700` directories and `0600` files. Goals, failure evidence, session IDs, repository paths, bounded output tails, and detached logs may be sensitive. Common credential shapes are redacted before task-state persistence, but redaction is best-effort rather than a confidentiality guarantee.
+
+## Task states
+
+```text
+WAITING_TO_RESUME → RUNNING
+RUNNING → RATE_LIMITED | NETWORK_DOWN | AGENT_CRASHED
+RUNNING → AGENT_EXITED_SUCCESSFULLY → COMPLETED
+RUNNING → PAUSE_REQUESTED → STOPPING → PAUSED
+any uncertain or unsafe transition → REQUIRES_REVIEW | UNKNOWN_FAILURE
+```
+
+## Test without Codex
+
+The bundled fake agent uses the same process launcher and stream boundaries as the Codex adapter while consuming no quota:
 
 ```bash
 export RESURGE_HOME=/tmp/resurge-demo
 
-resurge run fake "demo" --scenario success        # clean exit
-resurge run fake "demo" --scenario rate-limit     # waits for the reset time
-resurge run fake "demo" --scenario crash          # 3 restarts, then review
-resurge run fake "demo" --scenario network        # waits for connectivity
-resurge run fake "demo" --scenario noisy-stdout   # prints "429" but is fine
+resurge run fake "clean exit" --scenario success
+resurge run fake "background task" --scenario delayed --detach
+resurge run fake "simulated limit" --scenario rate-limit --detach
+resurge run fake "simulated crash" --scenario crash
+resurge run fake "misleading output" --scenario noisy-stdout
 ```
 
-### Verification
-
-By default a clean exit is *not* treated as success (see below). Give Resurge a way to check and it will decide for itself:
+For a deterministic crash-then-recovery demonstration:
 
 ```bash
-resurge run codex "fix the failing tests" -- npm test
+counter_file="$(mktemp)"
+FAKE_COUNTER_FILE="$counter_file" \
+  resurge run fake "recover after two crashes" \
+  --scenario crash-then-success
 ```
 
-Everything after `--` is an argv vector, run without a shell. Passing means `COMPLETED`; failing means `REQUIRES_REVIEW` with the output.
-
----
-
-## How it decides things
-
-Four ideas do most of the work.
-
-**A clean exit is not success.** Codex exits 0 when it finishes, and also when it hits a blocker, asks you a question, or does half the job. So a clean exit lands in `AGENT_EXITED_SUCCESSFULLY` — a real state, not a synonym for done. `COMPLETED` requires either your confirmation (`resurge complete`) or a passing verification command. Resurge trusts exit codes, git state, and test results; it does not trust an agent's account of its own progress.
-
-**The repository is checked against the moment of interruption, not the start.** Resurge snapshots the repo the instant the agent dies, before it waits or retries. On resume it compares *now* against *that* snapshot. Commits the agent made while supervised are already in the baseline, so they never block anything. Commits made while nobody was driving do:
-
-```
-Expected HEAD: abc123
-Current HEAD:  def456
-
-Repository changed while the agent was interrupted. Automatic resume has been blocked.
-```
-
-**Detection never triggers recovery.** The code that recognises a rate limit returns a structured `FailureEvent`; something else decides what to do about it. A regex cannot restart a process. This boundary is enforced by a test, not a convention.
-
-**Nothing is seized on a timeout.** Every task has an exclusive lease. Resurge takes over a lease only when the previous owner is *provably* gone — the process is dead, its PID was recycled, or the machine rebooted. A supervisor that is alive but not responding gets escalated to you, never overridden. The same applies to an agent process that outlived its supervisor: Resurge reports it and refuses to start a second one, rather than killing something it no longer owns.
-
----
-
-## Test
+## Development and verification
 
 ```bash
-npm test                # 159 tests, no Codex or network required
+npm ci
 npm run typecheck
-npm run test:codex      # opt-in: runs against a real installed Codex CLI
+npm test
+npm run build
+npm pack --dry-run
 ```
 
-The suite spawns real processes to prove the multi-process behaviour: two supervisors racing one stale lease, a supervisor suspended mid-write, an agent that outlives its parent. Everything else runs against the fake agent.
+The offline suite contains 166 passing tests plus three opt-in Codex compatibility tests. It covers deterministic failure classification, reset-time parsing, state transitions, repository divergence, redaction, stale revisions, real process groups, pause ordering, orphan handling, competing lease takeover, detached supervision, and end-to-end CLI behavior.
 
----
+To validate the installed Codex CLI without starting a paid task:
 
-## Known limitations
+```bash
+npm run test:codex
+```
 
-- **Foreground only.** Closing the terminal ends supervision. State survives, and `resurge resume` picks it up — but a multi-hour rate-limit wait needs the terminal to stay open. Detached mode is the top item for v0.2.
-- **macOS and Linux only.** The safety model depends on POSIX process identity and process-group signalling. Windows is refused at startup rather than degraded quietly.
-- **Single-writer assumption.** While a task is interrupted, Resurge assumes nothing else edits the repository. New, removed, status-changed, or content-changed dirty entries block automatic resume. If you edit the repo yourself during an interruption, inspect the result and resume manually with `--force`.
-- **The connectivity probe is advisory.** It checks reachability, not whether Codex is up or your credentials are valid. It is bounded: when the budget expires Resurge tries the resume anyway, because a real failed invocation is better evidence than a probe.
-- **Orphans are never reclaimed automatically.** You stop them.
-- **Redaction is best-effort.** Persisted text is scanned for common credential shapes. `--no-store-output` drops the output tail, but the goal, failure evidence and file paths are still stored — they are what makes recovery work. Treat `~/.resurge` (mode 0700) as sensitive.
-- **Pipes, not a PTY.** Output may differ from an interactive terminal.
-- **Session ids come only from `thread.started`.** Anything else falls back to a fresh session with a full continuation prompt, which is safer than resuming the wrong session.
-- **Single host.** Leases are not safe on a shared network filesystem.
+CI runs the offline suite on macOS and Linux with Node.js 20 and 22.
 
-## What's next (v0.2)
+## Current limitations
 
-1. **Detached mode** (`--detach`) with log tailing — the biggest real-world gap, since rate-limit waits run for hours.
-2. **A `node-pty` launcher** behind the existing `ProcessLauncher` interface, for full interactive-Codex fidelity.
-3. **Richer completion evidence** — extend `--verify` into a policy chain (tests, lint, diff review) and make it the recommended default.
+- A machine shutdown ends the detached supervisor; persisted tasks must be resumed after reboot.
+- There is no silent-process stall watchdog. Recovery begins when Codex emits a failure or exits.
+- Detached logs are durable but do not yet rotate automatically.
+- Pipes are used instead of a PTY, so presentation may differ from an interactive Codex terminal.
+- Leases are single-host and are not safe on a shared network filesystem.
+- Connectivity checks cannot prove API health, authentication validity, or remaining account quota.
+- Real provider behavior can change; the compatibility probe catches CLI argument drift, not every service-side error shape.
+
+## Roadmap
+
+1. Optional inactivity watchdog with conservative escalation rather than blind restart.
+2. Log following and rotation for long-running detached tasks.
+3. PTY-backed execution behind the existing process-launcher interface.
+4. Richer completion policies combining tests, lint, typecheck, and diff review.
+5. Startup integration for automatic post-reboot recovery.
 
 ## License
 
-MIT
+[MIT](LICENSE)

@@ -27,4 +27,9 @@ describe('CLI flag validation', () => {
     expect(validateFlags(args)).toBeNull();
     expect(args.rest).toEqual(['npm', 'test']);
   });
+
+  it('rejects malformed boolean values', () => {
+    const args = parseArgs(['run', 'codex', 'goal', '--detach=eventually']);
+    expect(validateFlags(args)).toBe('--detach must be true or false');
+  });
 });

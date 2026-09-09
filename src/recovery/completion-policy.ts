@@ -29,7 +29,8 @@ export async function evaluateCompletion(task: Task): Promise<CompletionOutcome>
   }
 
   const [command, ...args] = task.verify_argv;
-  const cwd = task.repo_at_interruption?.root ?? task.repo_at_start?.root ?? process.cwd();
+  const cwd =
+    task.workdir ?? task.repo_at_interruption?.root ?? task.repo_at_start?.root ?? process.cwd();
 
   try {
     // execFile with an argv vector: no shell, so nothing in the command is

@@ -23,7 +23,7 @@ Tests spawn real child processes. `RESURGE_HOME` isolates every test to a temp d
 
 ```
 src/
-  cli/          argument parsing, six commands, terminal formatting
+  cli/          argument parsing, seven commands, detached handoff, formatting
   types/        shared vocabulary; no logic
   supervisor/   the run loop, orphan reconciliation, pause, tunable policy
   agents/       AgentAdapter implementations, process launcher, capability probe
@@ -34,6 +34,7 @@ src/
   network/      advisory connectivity probing
   util/         clock, sleep, jsonl framing, redaction, platform, logging
 scripts/fake-agent.js   simulates every failure mode; needs no Codex or quota
+tests/integration/detached.test.ts proves background lifetime and control
 ```
 
 `supervisor/supervisor.ts` is the only module permitted to coordinate across the others. Aim for ~200 lines per file.
@@ -68,6 +69,8 @@ scripts/fake-agent.js   simulates every failure mode; needs no Codex or quota
 **11. Session ids come only from `thread.started`.** A bare or loosely-labelled UUID is rejected: resuming the wrong session is worse than starting fresh with a full continuation prompt. Abandoning a session likewise requires an explicit `SESSION_INVALID` classification — a rate limit during resume is a rate limit, and the session is kept.
 
 **12. Redaction is a storage-layer chokepoint.** `persistence/schema.ts::redactTask` covers every free-text field on write. Do not redact at call sites; an earlier design did, and failure evidence bypassed it. `load()` is pure and never mutates storage — quarantine of a corrupt record happens only under a held lease.
+
+**13. Detached launch data never enters argv.** `--detach` writes a 0600 handoff under `RESURGE_HOME`; the child receives only an opaque task id and deletes the handoff after validation. Goals and verification commands must not be copied into the detached supervisor's process arguments. Detached stdout/stderr share a private per-task log.
 
 ## Extending it
 

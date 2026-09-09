@@ -65,6 +65,8 @@ export const taskSchema = z.object({
   goal: z.string(),
   session_id: z.string().nullable(),
   workdir: z.string().optional(),
+  detached: z.boolean().optional(),
+  log_path: z.string().nullable().optional(),
   repo_at_start: repoSnapshot.nullable(),
   repo_at_interruption: repoSnapshot.nullable(),
   state: z.enum(TASK_STATES as unknown as [string, ...string[]]),

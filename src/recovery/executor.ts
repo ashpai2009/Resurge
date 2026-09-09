@@ -38,14 +38,8 @@ export async function preResumeGate(
   clock: Clock,
   networkBudgetMs: number,
 ): Promise<GateResult> {
-  // 1. Connectivity — advisory and bounded. Never terminal: if the budget
-  //    expires we go on and let a real invocation produce real evidence.
-  const online = await network.waitForConnectivity(networkBudgetMs);
-  if (!online) {
-    logger.warn('proceeding without confirmed connectivity (probe is advisory)');
-  }
-
-  // 2. Repository verification, against the interruption baseline.
+  // 1. Repository verification, against the interruption baseline. Keep all
+  //    cheap local blockers ahead of a connectivity wait that may take minutes.
   const current = await captureSnapshot(options.cwd, clock);
   const verdict = verifyRepo(task.repo_at_interruption, current);
   if (verdict.kind === 'REQUIRES_REVIEW') {
@@ -55,7 +49,7 @@ export async function preResumeGate(
     logger.warn(`--force: proceeding despite ${kind}`);
   }
 
-  // 3. The agent is installed and the argv we build actually parses. Not a
+  // 2. The agent is installed and the argv we build actually parses. Not a
   //    health check — it proves nothing about auth or API availability.
   const install = await adapter.installationCheck();
   if (!install.ok) {
@@ -65,6 +59,13 @@ export async function preResumeGate(
       // nothing to resume into, so this is a hard stop regardless of --force.
       reason: reviewReason('CORRUPT_STATE', `agent is not usable: ${install.detail}`),
     };
+  }
+
+  // 3. Connectivity — advisory and bounded. Never terminal: if the budget
+  //    expires we go on and let a real invocation produce real evidence.
+  const online = await network.waitForConnectivity(networkBudgetMs);
+  if (!online) {
+    logger.warn('proceeding without confirmed connectivity (probe is advisory)');
   }
 
   return { kind: 'PROCEED', current };

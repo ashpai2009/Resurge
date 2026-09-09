@@ -88,6 +88,10 @@ export interface Task {
   session_id: string | null;
   /** Exact launch directory, including when it is not a Git repository. */
   workdir?: string;
+  /** Whether the task was launched as a background supervisor. */
+  detached?: boolean;
+  /** Private per-task supervisor/agent log for detached runs. */
+  log_path?: string | null;
 
   /** Provenance only. NEVER an input to the pre-resume gate. */
   repo_at_start: RepoSnapshotRef | null;

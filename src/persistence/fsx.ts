@@ -143,6 +143,35 @@ export function readFileOrNull(target: string): string | null {
   }
 }
 
+/** Reads a bounded tail without following symlinks or loading the whole file. */
+export function readFileTail(
+  target: string,
+  maxBytes: number,
+): { text: string; truncated: boolean } | null {
+  assertNotSymlink(target);
+  const noFollowFlag = noFollow();
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(target, fs.constants.O_RDONLY | noFollowFlag);
+    const size = fs.fstatSync(fd).size;
+    const length = Math.min(size, Math.max(0, maxBytes));
+    const buffer = Buffer.alloc(length);
+    if (length > 0) fs.readSync(fd, buffer, 0, length, size - length);
+    return { text: buffer.toString('utf8'), truncated: size > length };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        // Ignore close errors after the read result is known.
+      }
+    }
+  }
+}
+
 export function statMtimeMs(target: string): number | null {
   try {
     return fs.lstatSync(target).mtimeMs;

@@ -11,6 +11,7 @@ import { dim, formatReview, red, title } from '../format.js';
 import { report } from './run.js';
 import { logger } from '../../util/logger.js';
 import type { Task } from '../../types/task.js';
+import * as path from 'node:path';
 
 /**
  * `resurge resume <task-id> [--force]`
@@ -19,7 +20,15 @@ import type { Task } from '../../types/task.js';
  * orphan reconciliation and the full pre-resume checks run either way, and a
  * non-forceable blocker found during that rerun still stops the resume.
  */
-export async function resumeCommand(args: ParsedArgs): Promise<number> {
+export interface ResumeCommandOptions {
+  detached?: boolean;
+  logPath?: string;
+}
+
+export async function resumeCommand(
+  args: ParsedArgs,
+  options: ResumeCommandOptions = {},
+): Promise<number> {
   const taskId = args.positional[0];
   if (!taskId) {
     process.stderr.write('usage: resurge resume <task-id> [--force]\n');
@@ -67,12 +76,21 @@ export async function resumeCommand(args: ParsedArgs): Promise<number> {
     return refreshedBlock;
   }
 
-  const cwd =
+  if (options.detached) {
+    task = await store.save(lease, {
+      ...task,
+      detached: true,
+      log_path: options.logPath ?? task.log_path ?? null,
+    });
+  }
+
+  const cwd = path.resolve(
     flagString(args, 'cwd') ??
-    task.workdir ??
-    task.repo_at_interruption?.root ??
-    task.repo_at_start?.root ??
-    process.cwd();
+      task.workdir ??
+      task.repo_at_interruption?.root ??
+      task.repo_at_start?.root ??
+      process.cwd(),
+  );
   const scenario = flagString(args, 'scenario');
   const adapter = createAdapter(task.agent, scenario ? { scenario } : {});
 

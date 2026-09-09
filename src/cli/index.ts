@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-import { parseArgs, validateFlags } from './args.js';
+import { flagBool, parseArgs, validateFlags } from './args.js';
 import { runCommand } from './commands/run.js';
 import { statusCommand } from './commands/status.js';
 import { listCommand } from './commands/list.js';
 import { resumeCommand } from './commands/resume.js';
 import { pauseCommand } from './commands/pause.js';
 import { completeCommand } from './commands/complete.js';
+import { logsCommand } from './commands/logs.js';
+import { claimDetachedRequest, launchDetached } from './detach.js';
 import { assertSupportedPlatform } from '../util/platform.js';
 import { logger } from '../util/logger.js';
 
@@ -18,12 +20,14 @@ Usage:
   resurge resume <task-id>         resume an interrupted task
   resurge pause <task-id>          stop the agent and record the task paused
   resurge complete <task-id>       mark a cleanly-exited task complete
+  resurge logs <task-id>           print the recent tail of a detached task log
 
 Run flags:
   --cwd <dir>                  repository to supervise (default: current directory)
   --scenario <name>            fake-agent scenario, for testing without quota
   --max-crash-retries <n>      automatic restarts before requiring review (default 3)
   --no-store-output            do not persist the agent output tail
+  --detach                     supervise in the background and write a task log
   -- <command...>              verification command; passing it promotes a clean
                                exit to COMPLETED, a failure to REQUIRES_REVIEW
 
@@ -31,6 +35,7 @@ Resume flags:
   --force                      proceed despite a forceable review reason. It never
                                skips the safety gate, and cannot override a live
                                agent process or an active supervisor.
+  --detach                     keep supervising in the background after resume
 
 Agents: codex (and "fake" for testing)
 `;
@@ -57,6 +62,10 @@ async function main(): Promise<number> {
   // signalling. Refusing outright beats degrading quietly.
   assertSupportedPlatform();
 
+  if ((args.command === 'run' || args.command === 'resume') && flagBool(args, 'detach')) {
+    return launchDetached(args);
+  }
+
   switch (args.command) {
     case 'run':
       return runCommand(args);
@@ -70,6 +79,22 @@ async function main(): Promise<number> {
       return pauseCommand(args.positional[0]);
     case 'complete':
       return completeCommand(args.positional[0]);
+    case 'logs':
+      return logsCommand(args.positional[0]);
+    case '__detached': {
+      const request = claimDetachedRequest(args.positional[0] ?? '');
+      if (!request) {
+        process.stderr.write('Detached launch request is missing or invalid.\n');
+        return 1;
+      }
+      return request.args.command === 'run'
+        ? runCommand(request.args, {
+            taskId: request.taskId,
+            detached: true,
+            logPath: request.logPath,
+          })
+        : resumeCommand(request.args, { detached: true, logPath: request.logPath });
+    }
     default:
       process.stderr.write(`Unknown command "${args.command}".\n\n${USAGE}`);
       return 64;

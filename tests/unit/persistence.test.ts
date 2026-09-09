@@ -7,7 +7,7 @@ import { JsonTaskStore } from '../../src/persistence/json-store.js';
 import { acquireLease } from '../../src/persistence/lease.js';
 import { corruptFile, resurgeHome, taskFile, tasksDir } from '../../src/persistence/paths.js';
 import { parseTask, SCHEMA_VERSION } from '../../src/persistence/schema.js';
-import { writeFileAtomic } from '../../src/persistence/fsx.js';
+import { readFileTail, writeFileAtomic } from '../../src/persistence/fsx.js';
 import { StaleTaskRevisionError } from '../../src/persistence/store.js';
 
 let home: ReturnType<typeof useTempHome>;
@@ -74,6 +74,14 @@ describe('save/load round-trip', () => {
       expect(fresh.task.state).toBe('RATE_LIMITED');
       expect(fresh.task.resume_at).toBe('2026-09-08T01:30:00.000Z');
     }
+  });
+});
+
+describe('bounded file tails', () => {
+  it('reads only the requested final bytes from a large log', () => {
+    const file = path.join(home.dir(), 'agent.log');
+    fs.writeFileSync(file, '0123456789');
+    expect(readFileTail(file, 4)).toEqual({ text: '6789', truncated: true });
   });
 });
 

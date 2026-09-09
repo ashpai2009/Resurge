@@ -100,6 +100,9 @@ export class Supervisor {
     if (options.resuming) {
       const gate = await this.gate(options.force ?? false);
       if (gate) return gate;
+      await this.persist({
+        attempts: { ...this.task.attempts, total_resumes: this.task.attempts.total_resumes + 1 },
+      });
     }
 
     this.startHeartbeat();
@@ -360,8 +363,10 @@ export class Supervisor {
       this.policy.networkBudgetMs,
     );
     if (result.kind === 'BLOCKED') return this.escalate(result.reason);
+    const patch: Partial<Task> = {};
+    if (this.task.workdir !== this.d.cwd) patch.workdir = this.d.cwd;
     if (force && priorReason) {
-      const patch: Partial<Task> = { review_reason: null };
+      patch.review_reason = null;
       if (
         priorReason.kind === 'REPO_MISMATCH' ||
         priorReason.kind === 'MISSING_INTERRUPTION_SNAPSHOT'
@@ -375,8 +380,8 @@ export class Supervisor {
         // A human-approved retry begins a fresh bounded retry window.
         patch.attempts = { ...this.task.attempts, crash: 0 };
       }
-      await this.persist(patch);
     }
+    if (Object.keys(patch).length > 0) await this.persist(patch);
     return null;
   }
 

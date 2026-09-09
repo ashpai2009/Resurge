@@ -130,6 +130,41 @@ describe('rate-limit recovery', () => {
   });
 });
 
+describe('network-outage recovery', () => {
+  it('waits for connectivity, runs the shared gate, and resumes', async () => {
+    const adapter = new ScriptedAdapter([
+      {
+        stderr: 'request failed: getaddrinfo ENOTFOUND api.openai.com',
+        exit: { code: 1, signal: null },
+      },
+      { exit: { code: 0, signal: null } },
+    ]);
+    const task = await seed();
+    let waits = 0;
+    const clock = new FakeClock('2026-09-08T20:00:00Z');
+    const final = await new Supervisor(task, {
+      adapter,
+      store,
+      lease,
+      network: {
+        isOnline: async () => true,
+        waitForConnectivity: async () => {
+          waits += 1;
+          return true;
+        },
+      },
+      clock,
+      sleeper: instantSleeper(clock),
+      policy: { ...DEFAULT_POLICY, heartbeatMs: 60_000 },
+      cwd: repo.dir,
+    }).run();
+
+    expect(final.state).toBe('AGENT_EXITED_SUCCESSFULLY');
+    expect(adapter.launches).toHaveLength(2);
+    expect(waits).toBe(2);
+  });
+});
+
 describe('crash recovery is bounded', () => {
   it('restarts three times, then requires review', async () => {
     const adapter = new ScriptedAdapter([{ stderr: 'panic: boom', exit: { code: 3, signal: null } }]);
@@ -287,7 +322,14 @@ describe('the repository gate', () => {
       adapter,
       store,
       lease,
-      network: alwaysOnline,
+      network: {
+        isOnline: async () => {
+          throw new Error('network should not be checked after a local gate failure');
+        },
+        waitForConnectivity: async () => {
+          throw new Error('network should not be checked after a local gate failure');
+        },
+      },
       clock,
       sleeper: {
         sleep: async (ms) => {

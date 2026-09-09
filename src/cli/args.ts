@@ -14,12 +14,14 @@ export interface ParsedArgs {
 }
 
 const VALUE_FLAGS = new Set(['scenario', 'cwd', 'max-crash-retries', 'agent']);
+const BOOLEAN_FLAGS = new Set(['no-store-output', 'force', 'detach', 'help', 'version']);
 
 const FLAGS_BY_COMMAND: Record<string, ReadonlySet<string>> = {
-  run: new Set(['cwd', 'scenario', 'max-crash-retries', 'no-store-output', 'force']),
-  resume: new Set(['cwd', 'scenario', 'force']),
+  run: new Set(['cwd', 'scenario', 'max-crash-retries', 'no-store-output', 'force', 'detach']),
+  resume: new Set(['cwd', 'scenario', 'force', 'detach']),
   status: new Set(),
   list: new Set(),
+  logs: new Set(),
   pause: new Set(),
   complete: new Set(),
 };
@@ -87,6 +89,9 @@ export function validateFlags(args: ParsedArgs): string | null {
     if (!allowed.has(name)) return `unknown flag for ${args.command}: --${name}`;
     if (VALUE_FLAGS.has(name) && typeof value !== 'string') {
       return `--${name} requires a value`;
+    }
+    if (BOOLEAN_FLAGS.has(name) && value !== true && value !== 'true' && value !== 'false') {
+      return `--${name} must be true or false`;
     }
   }
   return null;

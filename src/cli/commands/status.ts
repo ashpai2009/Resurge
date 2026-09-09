@@ -55,6 +55,8 @@ export function statusCommand(taskId?: string): number {
 
   if (task.resume_at) pairs.push(['Resume', `${clockTime(task.resume_at)}  ${dim(relativeTime(task.resume_at))}`]);
   if (task.session_id) pairs.push(['Session', task.session_id]);
+  if (task.detached) pairs.push(['Mode', 'detached']);
+  if (task.log_path) pairs.push(['Log', task.log_path]);
   pairs.push(['Branch', snap?.branch ?? '-']);
   pairs.push(['HEAD', shortSha(snap?.head_sha ?? null)]);
   if (snap && snap.entries.length > 0) pairs.push(['Dirty files', String(snap.entries.length)]);

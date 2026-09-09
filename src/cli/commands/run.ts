@@ -13,15 +13,22 @@ import { LeaseUnavailableError } from '../../types/lease.js';
 import type { Task } from '../../types/task.js';
 import { colorState, dim, formatReview, title } from '../format.js';
 import { logger } from '../../util/logger.js';
+import * as path from 'node:path';
 
 /**
  * `resurge run <agent> "<goal>"`
  *
- * Runs in the foreground: the supervisor lives for as long as the command does,
- * including through a rate-limit wait. State is on disk throughout, so `status`
- * and `list` work from any other shell and survive this process dying.
+ * Runs in the foreground unless the CLI dispatches it through the detached
+ * handoff. State is on disk throughout, so `status` and `list` work from any
+ * other shell and survive this process dying.
  */
-export async function runCommand(args: ParsedArgs): Promise<number> {
+export interface RunCommandOptions {
+  taskId?: string;
+  detached?: boolean;
+  logPath?: string;
+}
+
+export async function runCommand(args: ParsedArgs, options: RunCommandOptions = {}): Promise<number> {
   const [agentName, ...goalParts] = args.positional;
   const goal = goalParts.join(' ').trim();
 
@@ -31,7 +38,7 @@ export async function runCommand(args: ParsedArgs): Promise<number> {
   }
 
   ensureLayout();
-  const cwd = flagString(args, 'cwd') ?? process.cwd();
+  const cwd = path.resolve(flagString(args, 'cwd') ?? process.cwd());
   const scenario = flagString(args, 'scenario');
   const adapter = createAdapter(agentName, scenario ? { scenario } : {});
   const installation = await adapter.installationCheck();
@@ -52,11 +59,13 @@ export async function runCommand(args: ParsedArgs): Promise<number> {
   const now = new Date().toISOString();
   const task: Task = {
     schema_version: SCHEMA_VERSION,
-    task_id: newTaskId(),
+    task_id: options.taskId ?? newTaskId(),
     agent: agentName,
     goal,
     session_id: null,
     workdir: cwd,
+    detached: options.detached ?? false,
+    log_path: options.logPath ?? null,
     repo_at_start: await captureSnapshot(cwd),
     repo_at_interruption: null,
     // RUNNING is written only after a child has actually launched and its
