@@ -78,7 +78,16 @@ export function statusCommand(taskId?: string): number {
   let out = `${title(goalHeading(task.goal))}\n\n${rows(pairs)}\n`;
 
   if (task.failure) {
-    out += `\n${title('Failure')}\n${task.failure.type}: ${task.failure.evidence}\n`;
+    const historical = ![
+      'RATE_LIMITED',
+      'NETWORK_DOWN',
+      'AGENT_CRASHED',
+      'WAITING_TO_RESUME',
+      'REQUIRES_REVIEW',
+      'UNKNOWN_FAILURE',
+    ].includes(task.state);
+    out += `\n${title(historical ? 'Previous failure' : 'Failure')}\n`;
+    out += `${task.failure.type}: ${task.failure.evidence}\n`;
   }
   if (task.review_reason) {
     out += `\n${title('Blocked')}\n${formatReview(task.review_reason)}\n`;
