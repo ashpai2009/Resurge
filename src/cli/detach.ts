@@ -16,6 +16,7 @@ import { FILE_MODE, readFileOrNull, unlinkQuiet, writeFileAtomic } from '../pers
 import { probeProcess } from '../util/platform.js';
 import { inspectLease } from '../persistence/lease.js';
 import { JsonTaskStore } from '../persistence/json-store.js';
+import { resolveTaskSelector } from './task-selector.js';
 
 const wireRequestSchema = z.object({
   taskId: z.string(),
@@ -40,24 +41,44 @@ export async function launchDetached(args: ParsedArgs): Promise<number> {
     return 64;
   }
 
-  const taskId = args.command === 'resume' ? args.positional[0] : newTaskId();
+  const store = new JsonTaskStore();
+  const selector = args.positional[0];
+  const taskId =
+    args.command === 'resume'
+      ? selector
+        ? resolveTaskSelector(store, selector)
+        : null
+      : newTaskId();
   if (!taskId || !isTaskId(taskId)) {
-    process.stderr.write('A valid task id is required for detached resume.\n');
-    return 64;
+    process.stderr.write(
+      args.command === 'resume' && selector === 'latest'
+        ? 'No tasks yet. Start one with `resurge start "<task>"`.\n'
+        : 'A valid task id or `latest` is required for detached resume.\n',
+    );
+    return args.command === 'resume' && selector === 'latest' ? 1 : 64;
   }
 
-  const before = new JsonTaskStore().load(taskId);
+  const resolvedArgs: ParsedArgs =
+    args.command === 'resume'
+      ? { ...args, positional: [taskId, ...args.positional.slice(1)] }
+      : args;
+  const before = store.load(taskId);
   const beforeRevision = before?.ok ? before.task.revision : null;
 
   ensureLayout();
   const logPath = taskLogFile(taskId);
   const requestPath = detachedRequestFile(taskId);
-  const flags = [...args.flags.entries()].filter(([name]) => name !== 'detach');
+  const flags = [...resolvedArgs.flags.entries()].filter(([name]) => name !== 'detach');
   writeFileAtomic(
     requestPath,
     `${JSON.stringify({
       taskId,
-      args: { command: args.command, positional: args.positional, flags, rest: args.rest },
+      args: {
+        command: resolvedArgs.command,
+        positional: resolvedArgs.positional,
+        flags,
+        rest: resolvedArgs.rest,
+      },
     })}\n`,
   );
 

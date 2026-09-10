@@ -12,6 +12,7 @@ import { report } from './run.js';
 import { logger } from '../../util/logger.js';
 import type { Task } from '../../types/task.js';
 import * as path from 'node:path';
+import { resolveTaskSelector } from '../task-selector.js';
 
 /**
  * `resurge resume <task-id> [--force]`
@@ -29,13 +30,18 @@ export async function resumeCommand(
   args: ParsedArgs,
   options: ResumeCommandOptions = {},
 ): Promise<number> {
-  const taskId = args.positional[0];
-  if (!taskId) {
-    process.stderr.write('usage: resurge resume <task-id> [--force]\n');
+  const selector = args.positional[0];
+  if (!selector) {
+    process.stderr.write('usage: resurge resume <task-id|latest> [--force]\n');
     return 64;
   }
 
   const store = new JsonTaskStore();
+  const taskId = resolveTaskSelector(store, selector);
+  if (!taskId) {
+    process.stderr.write('No tasks yet. Start one with `resurge start "<task>"`.\n');
+    return 1;
+  }
   const loaded = store.load(taskId);
   if (!loaded) {
     process.stderr.write(`No task ${taskId}.\n`);

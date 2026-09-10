@@ -72,21 +72,21 @@ Pause:  resurge pause rsg_...
 Inspect the task from any shell:
 
 ```bash
-resurge status <task-id>
-resurge logs <task-id>
+resurge status
+resurge logs latest
 resurge list
 ```
 
 Pause it safely:
 
 ```bash
-resurge pause <task-id>
+resurge pause latest
 ```
 
 Resume it in the background:
 
 ```bash
-resurge resume <task-id> --detach
+resurge resume latest --detach
 ```
 
 Omit `--detach` when you want the supervisor and agent output attached to the current terminal.
@@ -98,12 +98,12 @@ Omit `--detach` when you want the supervisor and agent output attached to the cu
 | `resurge start "<goal>"` | Recommended one-command launch with safe defaults |
 | `resurge doctor` | Check Node, platform, project, storage, Git, and Codex readiness |
 | `resurge run <agent> "<goal>"` | Start a supervised task |
-| `resurge status [task-id]` | Show one task; defaults to the most recent |
+| `resurge status [task-id\|latest]` | Show one task; defaults to the most recent |
 | `resurge list` | List every task with its start time, end/ongoing status, and log path |
-| `resurge logs <task-id>` | Print the recent 256 KiB tail of a detached task log |
-| `resurge pause <task-id>` | Request a confirmed process-group stop |
-| `resurge resume <task-id>` | Resume through the full safety gate |
-| `resurge complete <task-id>` | Manually confirm a cleanly exited task is complete |
+| `resurge logs <task-id\|latest>` | Print the recent 256 KiB tail of a detached task log |
+| `resurge pause <task-id\|latest>` | Request a confirmed process-group stop |
+| `resurge resume <task-id\|latest>` | Resume through the full safety gate |
+| `resurge complete <task-id\|latest>` | Manually confirm a cleanly exited task is complete |
 
 Important `start` flags:
 

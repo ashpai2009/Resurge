@@ -15,6 +15,7 @@ import {
   title,
 } from '../format.js';
 import type { LoadResult } from '../../persistence/store.js';
+import { resolveTaskSelector } from '../task-selector.js';
 
 /**
  * Read-only. Reports corruption rather than repairing it: two concurrent
@@ -23,7 +24,8 @@ import type { LoadResult } from '../../persistence/store.js';
  */
 export function statusCommand(taskId?: string): number {
   const store = new JsonTaskStore();
-  const result = taskId ? store.load(taskId) : mostRecent(store.list());
+  const selected = taskId ? resolveTaskSelector(store, taskId) : null;
+  const result = taskId ? (selected ? store.load(selected) : null) : mostRecent(store.list());
 
   if (!result) {
     process.stdout.write(

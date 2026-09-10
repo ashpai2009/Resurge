@@ -18,15 +18,15 @@ const USAGE = `resurge - fault tolerance for coding agents
 Usage:
   resurge start "<task>"            easy start: Codex + background + auto tests
   resurge doctor                    check that this project is ready
-  resurge status [task-id]          show progress (default: most recent)
+  resurge status [task-id|latest]   show progress (default: most recent)
 
 Advanced:
   resurge run <agent> "<task>"     start a supervised task
   resurge list                     list task history, times, and log files
-  resurge resume <task-id>         resume an interrupted task
-  resurge pause <task-id>          stop the agent and record the task paused
-  resurge complete <task-id>       mark a cleanly-exited task complete
-  resurge logs <task-id>           print the recent tail of a detached task log
+  resurge resume <task-id|latest>  resume an interrupted task
+  resurge pause <task-id|latest>   stop the agent and record the task paused
+  resurge complete <task-id|latest> mark a cleanly-exited task complete
+  resurge logs <task-id|latest>    print the recent tail of a detached task log
 
 Start flags:
   --cwd <dir>                  project to supervise (default: current directory)

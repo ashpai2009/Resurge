@@ -4,6 +4,7 @@ import { requestControl } from '../../persistence/control.js';
 import { LeaseUnavailableError } from '../../types/lease.js';
 import { dim } from '../format.js';
 import { reconcileOrphan } from '../../supervisor/orphan.js';
+import { resolveTaskSelector } from '../task-selector.js';
 
 /**
  * `resurge pause <task-id>`
@@ -13,13 +14,18 @@ import { reconcileOrphan } from '../../supervisor/orphan.js';
  * owner that can actually stop the agent and confirm it died. If nobody owns
  * the task, this process takes the lease and performs the transition itself.
  */
-export async function pauseCommand(taskId: string | undefined): Promise<number> {
-  if (!taskId) {
-    process.stderr.write('usage: resurge pause <task-id>\n');
+export async function pauseCommand(selector: string | undefined): Promise<number> {
+  if (!selector) {
+    process.stderr.write('usage: resurge pause <task-id|latest>\n');
     return 64;
   }
 
   const store = new JsonTaskStore();
+  const taskId = resolveTaskSelector(store, selector);
+  if (!taskId) {
+    process.stderr.write('No tasks yet. Start one with `resurge start "<task>"`.\n');
+    return 1;
+  }
   const loaded = store.load(taskId);
   if (!loaded) {
     process.stderr.write(`No task ${taskId}.\n`);

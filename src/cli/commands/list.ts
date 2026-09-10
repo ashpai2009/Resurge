@@ -61,5 +61,6 @@ export function listCommand(): number {
     );
     if (line.logPath) process.stdout.write(`  ${dim(`log: ${line.logPath}`)}\n`);
   }
+  process.stdout.write(`\n${dim('Shortcuts: resurge status | resurge logs latest | resurge resume latest')}\n`);
   return 0;
 }

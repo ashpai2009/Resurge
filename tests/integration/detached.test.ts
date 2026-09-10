@@ -90,7 +90,7 @@ describe('detached supervision', () => {
     expect(fs.existsSync(detachedRequestFile(taskId))).toBe(false);
     expect(state(taskId)).toBe('RUNNING');
     await waitUntil(() => state(taskId) === 'AGENT_EXITED_SUCCESSFULLY', 10_000);
-    const logs = await cli(['logs', taskId]);
+    const logs = await cli(['logs', 'latest']);
     expect(logs.stdout).toContain('working...');
     expect(logs.stdout).toContain('State AGENT_EXITED_SUCCESSFULLY');
 
@@ -127,7 +127,7 @@ describe('detached supervision', () => {
     await waitUntil(() => state(taskId) === 'PAUSED', 15_000);
     await waitUntil(() => !isAlive(pid), 5_000);
 
-    const resumed = await cli(['resume', taskId, '--scenario', 'success', '--detach']);
+    const resumed = await cli(['resume', 'latest', '--scenario', 'success', '--detach']);
     const resumedProcess = ids(resumed.stdout);
     supervisors.push(resumedProcess.pid);
     expect(resumedProcess.taskId).toBe(taskId);

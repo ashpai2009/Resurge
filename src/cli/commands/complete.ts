@@ -1,6 +1,7 @@
 import { JsonTaskStore } from '../../persistence/json-store.js';
 import { acquireLease } from '../../persistence/lease.js';
 import { LeaseUnavailableError } from '../../types/lease.js';
+import { resolveTaskSelector } from '../task-selector.js';
 
 /**
  * `resurge complete <task-id>`
@@ -10,13 +11,18 @@ import { LeaseUnavailableError } from '../../types/lease.js';
  * work is actually done is what produces COMPLETED. Nothing here can mark a
  * running, waiting or blocked task complete.
  */
-export async function completeCommand(taskId: string | undefined): Promise<number> {
-  if (!taskId) {
-    process.stderr.write('usage: resurge complete <task-id>\n');
+export async function completeCommand(selector: string | undefined): Promise<number> {
+  if (!selector) {
+    process.stderr.write('usage: resurge complete <task-id|latest>\n');
     return 64;
   }
 
   const store = new JsonTaskStore();
+  const taskId = resolveTaskSelector(store, selector);
+  if (!taskId) {
+    process.stderr.write('No tasks yet. Start one with `resurge start "<task>"`.\n');
+    return 1;
+  }
   const loaded = store.load(taskId);
   if (!loaded) {
     process.stderr.write(`No task ${taskId}.\n`);
