@@ -59,6 +59,22 @@ function state(taskId: string): string | null {
 }
 
 describe('detached supervision', () => {
+  it('supports the one-command start path with safe defaults', async () => {
+    const launch = await cli(
+      ['start', 'easy background task', '--agent', 'fake', '--scenario', 'delayed', '--no-verify'],
+      { FAKE_DELAY_MS: '1000' },
+    );
+    const { taskId, pid } = ids(launch.stdout);
+    supervisors.push(pid);
+
+    expect(launch.stdout).toContain('Starting fake in the background');
+    expect(launch.stdout).toContain('Verification: none detected');
+    await waitUntil(() => state(taskId) === 'AGENT_EXITED_SUCCESSFULLY', 10_000);
+    const loaded = new JsonTaskStore().load(taskId);
+    expect(loaded?.ok && loaded.task.agent).toBe('fake');
+    expect(loaded?.ok && loaded.task.detached).toBe(true);
+  });
+
   it('outlives the launching CLI and writes a durable per-task log', async () => {
     const privateGoal = 'background demo private-goal-7f31';
     const launch = await cli(

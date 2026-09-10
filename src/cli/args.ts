@@ -1,7 +1,7 @@
 /**
  * Minimal argument parsing.
  *
- * A dependency would buy little here: six commands, a handful of flags, and one
+ * A dependency would buy little here: a few commands, a handful of flags, and one
  * genuinely important rule — everything after `--` belongs to --verify and must
  * reach execFile untouched.
  */
@@ -14,10 +14,28 @@ export interface ParsedArgs {
 }
 
 const VALUE_FLAGS = new Set(['scenario', 'cwd', 'max-crash-retries', 'agent']);
-const BOOLEAN_FLAGS = new Set(['no-store-output', 'force', 'detach', 'help', 'version']);
+const BOOLEAN_FLAGS = new Set([
+  'no-store-output',
+  'no-verify',
+  'foreground',
+  'force',
+  'detach',
+  'help',
+  'version',
+]);
 
 const FLAGS_BY_COMMAND: Record<string, ReadonlySet<string>> = {
+  start: new Set([
+    'cwd',
+    'agent',
+    'scenario',
+    'max-crash-retries',
+    'no-store-output',
+    'no-verify',
+    'foreground',
+  ]),
   run: new Set(['cwd', 'scenario', 'max-crash-retries', 'no-store-output', 'force', 'detach']),
+  doctor: new Set(['cwd']),
   resume: new Set(['cwd', 'scenario', 'force', 'detach']),
   status: new Set(),
   list: new Set(),

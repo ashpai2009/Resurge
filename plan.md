@@ -1,7 +1,7 @@
 # Resurge v0.1 — implementation plan
 
 Status: **complete**. Every item below is implemented and covered by tests
-(166 passing, 3 skipped — the skipped ones are the opt-in real-Codex suite,
+(174 passing, 3 skipped — the skipped ones are the opt-in real-Codex suite,
 which needs an installed Codex CLI).
 
 This plan went through three rounds of safety review before implementation

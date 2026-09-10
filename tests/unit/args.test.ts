@@ -32,4 +32,9 @@ describe('CLI flag validation', () => {
     const args = parseArgs(['run', 'codex', 'goal', '--detach=eventually']);
     expect(validateFlags(args)).toBe('--detach must be true or false');
   });
+
+  it('accepts the easy start and doctor flags', () => {
+    expect(validateFlags(parseArgs(['start', 'goal', '--foreground', '--no-verify']))).toBeNull();
+    expect(validateFlags(parseArgs(['doctor', '--cwd', '/repo']))).toBeNull();
+  });
 });

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { flagBool, parseArgs, validateFlags } from './args.js';
+import { flagBool, flagString, parseArgs, validateFlags } from './args.js';
 import { runCommand } from './commands/run.js';
 import { statusCommand } from './commands/status.js';
 import { listCommand } from './commands/list.js';
@@ -7,6 +7,8 @@ import { resumeCommand } from './commands/resume.js';
 import { pauseCommand } from './commands/pause.js';
 import { completeCommand } from './commands/complete.js';
 import { logsCommand } from './commands/logs.js';
+import { startCommand } from './commands/start.js';
+import { doctorCommand } from './commands/doctor.js';
 import { claimDetachedRequest, launchDetached } from './detach.js';
 import { assertSupportedPlatform } from '../util/platform.js';
 import { logger } from '../util/logger.js';
@@ -14,15 +16,25 @@ import { logger } from '../util/logger.js';
 const USAGE = `resurge - fault tolerance for coding agents
 
 Usage:
+  resurge start "<task>"            easy start: Codex + background + auto tests
+  resurge doctor                    check that this project is ready
+  resurge status [task-id]          show progress (default: most recent)
+
+Advanced:
   resurge run <agent> "<task>"     start a supervised task
-  resurge status [task-id]         show one task (default: most recent)
   resurge list                     list all known tasks
   resurge resume <task-id>         resume an interrupted task
   resurge pause <task-id>          stop the agent and record the task paused
   resurge complete <task-id>       mark a cleanly-exited task complete
   resurge logs <task-id>           print the recent tail of a detached task log
 
-Run flags:
+Start flags:
+  --cwd <dir>                  project to supervise (default: current directory)
+  --foreground                 keep output attached to this terminal
+  --no-verify                  do not auto-detect a test command
+  -- <command...>              use this exact verification command
+
+Advanced run flags:
   --cwd <dir>                  repository to supervise (default: current directory)
   --scenario <name>            fake-agent scenario, for testing without quota
   --max-crash-retries <n>      automatic restarts before requiring review (default 3)
@@ -58,6 +70,10 @@ async function main(): Promise<number> {
     return 64;
   }
 
+  // Doctor reports unsupported platforms as a check instead of throwing before
+  // it has a chance to explain what is wrong.
+  if (args.command === 'doctor') return doctorCommand(flagString(args, 'cwd'));
+
   // Resurge's safety model depends on POSIX process identity and process-group
   // signalling. Refusing outright beats degrading quietly.
   assertSupportedPlatform();
@@ -67,6 +83,8 @@ async function main(): Promise<number> {
   }
 
   switch (args.command) {
+    case 'start':
+      return startCommand(args);
     case 'run':
       return runCommand(args);
     case 'status':

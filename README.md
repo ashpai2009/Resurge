@@ -32,28 +32,32 @@ Windows is rejected in v0.1 because the current safety model depends on POSIX pr
 
 ```bash
 cd /path/to/Resurge
-npm ci
-npm run build
-npm link
+npm run setup
 ```
 
-Confirm the installation:
+That installs dependencies, builds Resurge, and links the `resurge` command. Then check the project you want to supervise:
 
 ```bash
-resurge --version
-resurge help
+cd /path/to/your-project
+resurge doctor
 ```
 
 The Codex CLI is installed separately. Resurge checks the installed CLI and the exact start/resume argument forms before launching a real task.
 
 ## Quick start
 
-Run a supervised task in the background:
+For the normal workflow, one command chooses Codex, the current project, background supervision, and a conventional test command automatically:
 
 ```bash
-resurge run codex "finish the reviewer workflow and run its tests" \
-  --detach \
-  -- npm test
+resurge start "finish the reviewer workflow and run its tests"
+```
+
+Resurge recognizes standard npm, pnpm, Yarn, Bun, Cargo, Go, and pytest projects. It prints the verification command before starting. If nothing safe is detected, completion remains manual rather than guessing.
+
+To choose the verification command yourself:
+
+```bash
+resurge start "finish the reviewer workflow" -- npm run check
 ```
 
 Resurge immediately prints a task ID and returns control to the terminal:
@@ -91,6 +95,8 @@ Omit `--detach` when you want the supervisor and agent output attached to the cu
 
 | Command | Purpose |
 |---|---|
+| `resurge start "<goal>"` | Recommended one-command launch with safe defaults |
+| `resurge doctor` | Check Node, platform, project, storage, Git, and Codex readiness |
 | `resurge run <agent> "<goal>"` | Start a supervised task |
 | `resurge status [task-id]` | Show one task; defaults to the most recent |
 | `resurge list` | List all persisted tasks |
@@ -99,7 +105,16 @@ Omit `--detach` when you want the supervisor and agent output attached to the cu
 | `resurge resume <task-id>` | Resume through the full safety gate |
 | `resurge complete <task-id>` | Manually confirm a cleanly exited task is complete |
 
-Important run flags:
+Important `start` flags:
+
+| Flag | Meaning |
+|---|---|
+| `--cwd <directory>` | Supervise a different project |
+| `--foreground` | Attach supervision and output to the current terminal |
+| `--no-verify` | Disable automatic test-command discovery |
+| `-- <command...>` | Use this exact verification command |
+
+Advanced `run` flags:
 
 | Flag | Meaning |
 |---|---|
@@ -229,7 +244,7 @@ npm run build
 npm pack --dry-run
 ```
 
-The offline suite contains 166 passing tests plus three opt-in Codex compatibility tests. It covers deterministic failure classification, reset-time parsing, state transitions, repository divergence, redaction, stale revisions, real process groups, pause ordering, orphan handling, competing lease takeover, detached supervision, and end-to-end CLI behavior.
+The offline suite contains 174 passing tests plus three opt-in Codex compatibility tests. It covers deterministic failure classification, reset-time parsing, state transitions, repository divergence, redaction, stale revisions, real process groups, pause ordering, orphan handling, competing lease takeover, easy-start defaults, detached supervision, and end-to-end CLI behavior.
 
 To validate the installed Codex CLI without starting a paid task:
 

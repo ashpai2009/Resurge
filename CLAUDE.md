@@ -12,6 +12,7 @@ TypeScript, Node 20+, ESM, strict mode. One runtime dependency (zod). POSIX only
 
 ```bash
 npm run build       # tsc -> dist/
+npm run setup       # install, build, and link the local CLI
 npm run typecheck   # tsc --noEmit
 npm test            # vitest; builds dist/ first via tests/globalSetup.ts
 npm run test:codex  # opt-in suite against a real installed Codex CLI
@@ -23,7 +24,7 @@ Tests spawn real child processes. `RESURGE_HOME` isolates every test to a temp d
 
 ```
 src/
-  cli/          argument parsing, seven commands, detached handoff, formatting
+  cli/          argument parsing, easy start/doctor, detached handoff, formatting
   types/        shared vocabulary; no logic
   supervisor/   the run loop, orphan reconciliation, pause, tunable policy
   agents/       AgentAdapter implementations, process launcher, capability probe

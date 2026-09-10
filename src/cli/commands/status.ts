@@ -27,7 +27,7 @@ export function statusCommand(taskId?: string): number {
 
   if (!result) {
     process.stdout.write(
-      taskId ? `No task ${taskId}.\n` : 'No tasks yet. Start one with `resurge run codex "<task>"`.\n',
+      taskId ? `No task ${taskId}.\n` : 'No tasks yet. Start one with `resurge start "<task>"`.\n',
     );
     return taskId ? 1 : 0;
   }
