@@ -9,15 +9,17 @@ import { probeCapabilities } from './capability-probe.js';
  * Argv follows the documented shape, with --json as an `exec` option and
  * `resume` as its subcommand:
  *
- *   codex exec --json --sandbox workspace-write --approve-for-me -
- *   codex exec --json --sandbox workspace-write --approve-for-me resume <id> -
+ *   codex exec --json --approve-for-me -
+ *   codex exec --json --approve-for-me resume <id> -
  *
  * The trailing `-` reads the prompt from stdin. That is a safety property, not
  * a style choice: a prompt in argv is visible to every local user via `ps`.
  */
 export const CODEX_BIN = process.env['RESURGE_CODEX_BIN'] ?? 'codex';
 
-const EXECUTION_POLICY = ['--sandbox', 'workspace-write', '--approve-for-me'] as const;
+// --approve-for-me already selects the workspace-write sandbox. Passing an
+// explicit --sandbox alongside it is rejected by current Codex CLI releases.
+const EXECUTION_POLICY = ['--approve-for-me'] as const;
 
 export function buildStartArgs(): string[] {
   return ['exec', '--json', ...EXECUTION_POLICY, '-'];

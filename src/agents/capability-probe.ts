@@ -19,10 +19,10 @@ export interface ProbeResult {
  * Verifies that the CLI is installed and that the exact argv Resurge builds is
  * accepted by it.
  *
- * Grepping `--help` text for the words "resume" and "--json" separately would
- * prove nothing about whether the *combination* parses. So the probe invokes
- * the real constructed form with --help appended, which exercises the CLI's own
- * parser, needs no network, and consumes no quota.
+ * Appending --help is not sufficient: clap may short-circuit before checking
+ * conflicts between options. Instead, the probe runs each exact argv with an
+ * empty stdin. A compatible Codex parses the complete command and stops with
+ * "No prompt provided" before it can contact the service or consume quota.
  *
  * Result is cached per version, because this runs before every resume and a
  * long-lived task may resume many times.
@@ -46,14 +46,15 @@ export async function probeCapabilities(bin: string): Promise<ProbeResult> {
   if (cached) return cached;
 
   const forms: { label: string; args: string[] }[] = [
-    { label: 'start', args: [...buildStartArgs().slice(0, -1), '--help'] },
-    { label: 'resume', args: [...buildResumeArgs('00000000-0000-4000-8000-000000000000').slice(0, -2), '--help'] },
+    { label: 'start', args: buildStartArgs() },
+    { label: 'resume', args: buildResumeArgs('00000000-0000-4000-8000-000000000000') },
   ];
 
   for (const form of forms) {
     try {
-      await exec(bin, form.args, { encoding: 'utf8', timeout: 15_000 });
+      await execWithClosedStdin(bin, form.args, 15_000);
     } catch (err) {
+      if (isEmptyPromptExit(err)) continue;
       const result: ProbeResult = {
         ok: false,
         version,
@@ -69,6 +70,29 @@ export async function probeCapabilities(bin: string): Promise<ProbeResult> {
   const result: ProbeResult = { ok: true, version, detail: `codex ${version}` };
   writeCache(bin, version, result);
   return result;
+}
+
+function isEmptyPromptExit(err: unknown): boolean {
+  const e = err as { stdout?: string; stderr?: string };
+  return `${e.stdout ?? ''}\n${e.stderr ?? ''}`.includes('No prompt provided via stdin.');
+}
+
+function execWithClosedStdin(
+  bin: string,
+  args: string[],
+  timeout: number,
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(bin, args, { encoding: 'utf8', timeout }, (error, stdout, stderr) => {
+      if (error) {
+        Object.assign(error, { stdout, stderr });
+        reject(error);
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+    child.stdin?.end();
+  });
 }
 
 function cacheFile(bin: string, version: string): string {

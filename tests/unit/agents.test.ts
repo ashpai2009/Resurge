@@ -25,19 +25,16 @@ describe('argv contract', () => {
     expect(buildStartArgs()).toEqual([
       'exec',
       '--json',
-      '--sandbox',
-      'workspace-write',
       '--approve-for-me',
       '-',
     ]);
+    expect(buildStartArgs()).not.toContain('--sandbox');
   });
 
   it('builds the documented resume form, with --json as an exec option', () => {
     expect(buildResumeArgs('abc-123')).toEqual([
       'exec',
       '--json',
-      '--sandbox',
-      'workspace-write',
       '--approve-for-me',
       'resume',
       'abc-123',

@@ -32,14 +32,11 @@ describe.skipIf(!installed)('installed Codex CLI compatibility', () => {
   const home = useTempHome();
 
   it('accepts the exact start argv Resurge builds', async () => {
-    await expect(
-      exec(BIN, [...buildStartArgs().slice(0, -1), '--help'], { timeout: 20_000 }),
-    ).resolves.toBeDefined();
+    await expectEmptyPromptExit(buildStartArgs());
   });
 
   it('accepts the exact resume argv Resurge builds', async () => {
-    const args = buildResumeArgs('00000000-0000-4000-8000-000000000000').slice(0, -2);
-    await expect(exec(BIN, [...args, '--help'], { timeout: 20_000 })).resolves.toBeDefined();
+    await expectEmptyPromptExit(buildResumeArgs('00000000-0000-4000-8000-000000000000'));
   });
 
   it('passes the capability probe', async () => {
@@ -48,6 +45,30 @@ describe.skipIf(!installed)('installed Codex CLI compatibility', () => {
     home.cleanup();
   });
 });
+
+async function expectEmptyPromptExit(args: string[]): Promise<void> {
+  try {
+    await execWithClosedStdin(args);
+    throw new Error('Codex unexpectedly accepted an empty prompt');
+  } catch (err) {
+    const e = err as { stdout?: string; stderr?: string };
+    expect(`${e.stdout ?? ''}\n${e.stderr ?? ''}`).toContain('No prompt provided via stdin.');
+  }
+}
+
+function execWithClosedStdin(args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(BIN, args, { encoding: 'utf8', timeout: 20_000 }, (error, stdout, stderr) => {
+      if (error) {
+        Object.assign(error, { stdout, stderr });
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+    child.stdin?.end();
+  });
+}
 
 describe.skipIf(installed)('installed Codex CLI compatibility (skipped)', () => {
   it('is opt-in and requires an installed codex', () => {
