@@ -99,7 +99,7 @@ Omit `--detach` when you want the supervisor and agent output attached to the cu
 | `resurge doctor` | Check Node, platform, project, storage, Git, and Codex readiness |
 | `resurge run <agent> "<goal>"` | Start a supervised task |
 | `resurge status [task-id]` | Show one task; defaults to the most recent |
-| `resurge list` | List all persisted tasks |
+| `resurge list` | List every task with its start time, end/ongoing status, and log path |
 | `resurge logs <task-id>` | Print the recent 256 KiB tail of a detached task log |
 | `resurge pause <task-id>` | Request a confirmed process-group stop |
 | `resurge resume <task-id>` | Resume through the full safety gate |

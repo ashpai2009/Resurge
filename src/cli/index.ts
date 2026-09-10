@@ -22,7 +22,7 @@ Usage:
 
 Advanced:
   resurge run <agent> "<task>"     start a supervised task
-  resurge list                     list all known tasks
+  resurge list                     list task history, times, and log files
   resurge resume <task-id>         resume an interrupted task
   resurge pause <task-id>          stop the agent and record the task paused
   resurge complete <task-id>       mark a cleanly-exited task complete
